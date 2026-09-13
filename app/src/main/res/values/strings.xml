@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">SmartNote</string>
+    <string name="nav_feed">Notes</string>
+    <string name="nav_flashcards">Flashcards</string>
+    <string name="nav_digest">Digest</string>
+    <string name="nav_settings">Settings</string>
+    <string name="search_placeholder">Semantic search notes...</string>
+    <string name="share_received">Processing shared video in background...</string>
+    <string name="notification_channel_name">SmartNote Updates</string>
+    <string name="notification_channel_desc">Notifications for processed reels and weekly digests</string>
+</resources>

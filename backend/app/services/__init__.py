@@ -1,0 +1,3 @@
+"""
+SmartNote Services Package
+"""
