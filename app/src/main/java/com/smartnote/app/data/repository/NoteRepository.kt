@@ -164,4 +164,53 @@ class NoteRepository(private val context: Context, private val noteDao: NoteDao)
             }
         }
     }
+
+    val sessionManager = com.smartnote.app.data.local.SessionManager(context)
+
+    suspend fun ensureSessionInitialized() {
+        withContext(Dispatchers.IO) {
+            if (sessionManager.getSessionToken().isNullOrBlank()) {
+                try {
+                    val resp = apiService.createSession(sessionManager.getUserId())
+                    if (resp.isSuccessful && resp.body() != null) {
+                        sessionManager.setSessionToken(resp.body()!!.accessToken)
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    suspend fun fetchAuthStatus(): Result<List<String>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                ensureSessionInitialized()
+                val resp = apiService.getAuthStatus()
+                if (resp.isSuccessful && resp.body() != null) {
+                    val providers = resp.body()!!.connectedProviders
+                    sessionManager.setConnectedProviders(providers.toSet())
+                    Result.success(providers)
+                } else {
+                    Result.failure(Exception("Failed to fetch auth status: HTTP ${resp.code()}"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun disconnectProvider(provider: String): Result<Boolean> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val resp = apiService.disconnectProvider(provider)
+                if (resp.isSuccessful) {
+                    sessionManager.removeConnectedProvider(provider)
+                    Result.success(true)
+                } else {
+                    Result.failure(Exception("Failed to disconnect $provider: HTTP ${resp.code()}"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
 }

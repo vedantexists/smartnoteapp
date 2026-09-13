@@ -47,7 +47,22 @@ object RetrofitClient {
                     level = HttpLoggingInterceptor.Level.BODY
                 }
 
+                val sessionManager = com.smartnote.app.data.local.SessionManager(context)
+                val authInterceptor = okhttp3.Interceptor { chain ->
+                    val original = chain.request()
+                    val requestBuilder = original.newBuilder()
+
+                    val token = sessionManager.getSessionToken()
+                    if (!token.isNullOrBlank()) {
+                        requestBuilder.header("Authorization", "Bearer $token")
+                    }
+                    requestBuilder.header("X-User-Id", sessionManager.getUserId())
+
+                    chain.proceed(requestBuilder.build())
+                }
+
                 val okHttpClient = OkHttpClient.Builder()
+                    .addInterceptor(authInterceptor)
                     .addInterceptor(logging)
                     .connectTimeout(60, TimeUnit.SECONDS)
                     .readTimeout(180, TimeUnit.SECONDS) // Gemini multimodal processing may take up to 2 minutes

@@ -25,9 +25,37 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
+    # 1. Users table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    """)
+
+    # 2. User OAuth Tokens (Encrypted at rest with AES-256)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_tokens (
+        user_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        encrypted_access_token TEXT NOT NULL,
+        encrypted_refresh_token TEXT,
+        token_type TEXT,
+        scope TEXT,
+        expires_at REAL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, provider),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    """)
+
+    # 3. Notes table (with multi-tenant user_id isolation)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS notes (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL DEFAULT 'default_user',
         source_url TEXT NOT NULL,
         domain TEXT NOT NULL,
         title TEXT NOT NULL,
@@ -43,10 +71,18 @@ def init_db():
         notion_synced INTEGER DEFAULT 0,
         notion_url TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     """)
 
+    # Check and migrate existing notes table if user_id column is missing
+    cursor.execute("PRAGMA table_info(notes);")
+    columns = [row["name"] for row in cursor.fetchall()]
+    if "user_id" not in columns:
+        cursor.execute("ALTER TABLE notes ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default_user';")
+
+    # 4. Relational Link Items
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS link_items (
         id TEXT PRIMARY KEY,
@@ -58,6 +94,7 @@ def init_db():
     );
     """)
 
+    # 5. Media Recommendations
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS media_recs (
         id TEXT PRIMARY KEY,
@@ -70,6 +107,7 @@ def init_db():
     );
     """)
 
+    # 6. Active Recall Flashcards
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS flashcards (
         id TEXT PRIMARY KEY,
@@ -81,9 +119,11 @@ def init_db():
     );
     """)
 
+    # 7. Weekly Digests (User scoped)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS weekly_digests (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL DEFAULT 'default_user',
         start_date TEXT NOT NULL,
         end_date TEXT NOT NULL,
         digest_json TEXT NOT NULL,
@@ -91,12 +131,101 @@ def init_db():
     );
     """)
 
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_domain ON notes(domain);")
+    # Migrate weekly_digests if user_id missing
+    cursor.execute("PRAGMA table_info(weekly_digests);")
+    wd_cols = [row["name"] for row in cursor.fetchall()]
+    if "user_id" not in wd_cols:
+        cursor.execute("ALTER TABLE weekly_digests ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default_user';")
+
+    # Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_created ON notes(user_id, created_at);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_domain ON notes(user_id, domain);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_user ON user_tokens(user_id);")
+
+    # Ensure default user exists
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    cursor.execute("INSERT OR IGNORE INTO users (id, email, created_at, updated_at) VALUES ('default_user', 'user@smartnote.local', ?, ?)", (now, now))
 
     conn.commit()
     conn.close()
 
+# ------------------------------------------------------------------------------
+# User & OAuth Token Operations
+# ------------------------------------------------------------------------------
+def ensure_user_exists(user_id: str, email: Optional[str] = None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    cursor.execute("""
+    INSERT OR IGNORE INTO users (id, email, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
+    """, (user_id, email, now, now))
+    conn.commit()
+    conn.close()
+
+def save_user_token(
+    user_id: str,
+    provider: str,
+    encrypted_access_token: str,
+    encrypted_refresh_token: Optional[str] = None,
+    token_type: Optional[str] = "Bearer",
+    scope: Optional[str] = None,
+    expires_at: Optional[float] = None
+):
+    ensure_user_exists(user_id)
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    cursor.execute("""
+    INSERT INTO user_tokens (
+        user_id, provider, encrypted_access_token, encrypted_refresh_token,
+        token_type, scope, expires_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, provider) DO UPDATE SET
+        encrypted_access_token = excluded.encrypted_access_token,
+        encrypted_refresh_token = coalesce(excluded.encrypted_refresh_token, user_tokens.encrypted_refresh_token),
+        token_type = excluded.token_type,
+        scope = excluded.scope,
+        expires_at = excluded.expires_at,
+        updated_at = excluded.updated_at
+    """, (
+        user_id, provider.lower(), encrypted_access_token, encrypted_refresh_token,
+        token_type, scope, expires_at, now
+    ))
+    conn.commit()
+    conn.close()
+
+def get_user_token(user_id: str, provider: str) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT * FROM user_tokens WHERE user_id = ? AND provider = ?
+    """, (user_id, provider.lower()))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return dict(row)
+
+def delete_user_token(user_id: str, provider: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM user_tokens WHERE user_id = ? AND provider = ?", (user_id, provider.lower()))
+    conn.commit()
+    conn.close()
+
+def get_connected_providers(user_id: str) -> List[str]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT provider FROM user_tokens WHERE user_id = ?", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [r["provider"] for r in rows]
+
+# ------------------------------------------------------------------------------
+# Multi-Tenant Note Operations
+# ------------------------------------------------------------------------------
 def save_note(
     note_id: str,
     source_url: str,
@@ -111,8 +240,10 @@ def save_note(
     event_ics: Optional[str] = None,
     integrations: Optional[IntegrationStatus] = None,
     status: str = "success",
-    clickbait_reason: Optional[str] = None
+    clickbait_reason: Optional[str] = None,
+    user_id: str = "default_user"
 ) -> NoteRecord:
+    ensure_user_exists(user_id)
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -120,12 +251,13 @@ def save_note(
 
     cursor.execute("""
     INSERT INTO notes (
-        id, source_url, domain, title, summary, detailed_notes, event_ics,
+        id, user_id, source_url, domain, title, summary, detailed_notes, event_ics,
         status, clickbait_reason, github_repos, github_starred, spotify_added,
         tmdb_added, notion_synced, notion_url, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         note_id,
+        user_id,
         source_url,
         domain,
         title,
@@ -168,7 +300,7 @@ def save_note(
     conn.commit()
     conn.close()
 
-    return get_note_by_id(note_id)
+    return get_note_by_id(note_id, user_id=user_id)
 
 def update_note(
     note_id: str,
@@ -181,13 +313,14 @@ def update_note(
     web_resources: Optional[List[WebResource]] = None,
     entertainment_recs: Optional[List[EntertainmentRec]] = None,
     event_ics: Optional[str] = None,
-    integrations: Optional[IntegrationStatus] = None
+    integrations: Optional[IntegrationStatus] = None,
+    user_id: Optional[str] = None
 ) -> Optional[NoteRecord]:
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-    existing = get_note_by_id(note_id)
+    existing = get_note_by_id(note_id, user_id=user_id)
     if not existing:
         conn.close()
         return None
@@ -211,7 +344,6 @@ def update_note(
         update_fields.append("event_ics = ?")
         params.append(event_ics)
     if github_repos is not None:
-        # Merge uniquely with existing
         merged_repos = list(dict.fromkeys(existing.github_repos + github_repos))
         update_fields.append("github_repos = ?")
         params.append(json.dumps(merged_repos))
@@ -242,9 +374,14 @@ def update_note(
     params.append(now)
 
     params.append(note_id)
-    cursor.execute(f"UPDATE notes SET {', '.join(update_fields)} WHERE id = ?", params)
+    where_clause = "WHERE id = ?"
+    if user_id:
+        where_clause += " AND user_id = ?"
+        params.append(user_id)
 
-    # If web_resources provided, append non-duplicates
+    cursor.execute(f"UPDATE notes SET {', '.join(update_fields)} {where_clause}", params)
+
+    # Web resources append
     if web_resources:
         existing_urls = {item.url for item in existing.web_resources}
         for item in web_resources:
@@ -255,7 +392,7 @@ def update_note(
                 """, (str(uuid.uuid4()), note_id, item.name, item.url, item.purpose))
                 existing_urls.add(item.url)
 
-    # If entertainment_recs provided, append non-duplicates
+    # Media recs append
     if entertainment_recs:
         existing_titles = {item.title.lower() for item in existing.entertainment_recommendations}
         for item in entertainment_recs:
@@ -266,7 +403,7 @@ def update_note(
                 """, (str(uuid.uuid4()), note_id, item.title, item.type, item.creator, item.reason))
                 existing_titles.add(item.title.lower())
 
-    # If flashcards provided, append non-duplicates
+    # Flashcards append
     if flashcards:
         existing_qs = {fc.question.lower().strip() for fc in existing.flashcards}
         for fc in flashcards:
@@ -280,27 +417,28 @@ def update_note(
     conn.commit()
     conn.close()
 
-    return get_note_by_id(note_id)
+    return get_note_by_id(note_id, user_id=user_id)
 
-def get_note_by_id(note_id: str) -> Optional[NoteRecord]:
+def get_note_by_id(note_id: str, user_id: Optional[str] = None) -> Optional[NoteRecord]:
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM notes WHERE id = ?", (note_id,))
+    if user_id:
+        cursor.execute("SELECT * FROM notes WHERE id = ? AND user_id = ?", (note_id, user_id))
+    else:
+        cursor.execute("SELECT * FROM notes WHERE id = ?", (note_id,))
+
     row = cursor.fetchone()
     if not row:
         conn.close()
         return None
 
-    # Fetch links
     cursor.execute("SELECT name, url, purpose FROM link_items WHERE note_id = ?", (note_id,))
     links = [WebResource(name=r["name"], url=r["url"], purpose=r["purpose"]) for r in cursor.fetchall()]
 
-    # Fetch media recs
     cursor.execute("SELECT title, type, creator, reason FROM media_recs WHERE note_id = ?", (note_id,))
     recs = [EntertainmentRec(title=r["title"], type=r["type"], creator=r["creator"], reason=r["reason"]) for r in cursor.fetchall()]
 
-    # Fetch flashcards
     cursor.execute("SELECT question, answer, key_takeaway FROM flashcards WHERE note_id = ?", (note_id,))
     cards = [Flashcard(question=r["question"], answer=r["answer"], key_takeaway=r["key_takeaway"]) for r in cursor.fetchall()]
 
@@ -336,50 +474,69 @@ def get_note_by_id(note_id: str) -> Optional[NoteRecord]:
         updated_at=row["updated_at"]
     )
 
-def list_notes(limit: int = 50, offset: int = 0, domain: Optional[str] = None) -> List[NoteRecord]:
+def list_notes(
+    user_id: str = "default_user",
+    limit: int = 50,
+    offset: int = 0,
+    domain: Optional[str] = None
+) -> List[NoteRecord]:
     conn = get_connection()
     cursor = conn.cursor()
     if domain:
-        cursor.execute("SELECT id FROM notes WHERE status = 'success' AND domain = ? ORDER BY created_at DESC LIMIT ? OFFSET ?", (domain, limit, offset))
+        cursor.execute(
+            "SELECT id FROM notes WHERE user_id = ? AND status = 'success' AND domain = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (user_id, domain, limit, offset)
+        )
     else:
-        cursor.execute("SELECT id FROM notes WHERE status = 'success' ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+        cursor.execute(
+            "SELECT id FROM notes WHERE user_id = ? AND status = 'success' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (user_id, limit, offset)
+        )
     rows = cursor.fetchall()
     conn.close()
 
     results = []
     for r in rows:
-        n = get_note_by_id(r["id"])
+        n = get_note_by_id(r["id"], user_id=user_id)
         if n:
             results.append(n)
     return results
 
-def get_notes_in_range(start_date: str, end_date: str) -> List[NoteRecord]:
+def get_notes_in_range(start_date: str, end_date: str, user_id: Optional[str] = None) -> List[NoteRecord]:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-    SELECT id FROM notes 
-    WHERE status = 'success' AND created_at >= ? AND created_at <= ?
-    ORDER BY created_at ASC
-    """, (start_date, end_date))
+    if user_id:
+        cursor.execute("""
+        SELECT id FROM notes 
+        WHERE user_id = ? AND status = 'success' AND created_at >= ? AND created_at <= ?
+        ORDER BY created_at ASC
+        """, (user_id, start_date, end_date))
+    else:
+        cursor.execute("""
+        SELECT id FROM notes 
+        WHERE status = 'success' AND created_at >= ? AND created_at <= ?
+        ORDER BY created_at ASC
+        """, (start_date, end_date))
     rows = cursor.fetchall()
     conn.close()
 
     notes = []
     for r in rows:
-        n = get_note_by_id(r["id"])
+        n = get_note_by_id(r["id"], user_id=user_id)
         if n:
             notes.append(n)
     return notes
 
-def save_weekly_digest(digest: WeeklyDigestResponse):
+def save_weekly_digest(digest: WeeklyDigestResponse, user_id: str = "default_user"):
     conn = get_connection()
     cursor = conn.cursor()
     digest_id = str(uuid.uuid4())
     cursor.execute("""
-    INSERT INTO weekly_digests (id, start_date, end_date, digest_json, created_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO weekly_digests (id, user_id, start_date, end_date, digest_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
     """, (
         digest_id,
+        user_id,
         digest.start_date,
         digest.end_date,
         digest.model_dump_json(),
@@ -388,10 +545,13 @@ def save_weekly_digest(digest: WeeklyDigestResponse):
     conn.commit()
     conn.close()
 
-def get_latest_weekly_digest() -> Optional[WeeklyDigestResponse]:
+def get_latest_weekly_digest(user_id: str = "default_user") -> Optional[WeeklyDigestResponse]:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT digest_json FROM weekly_digests ORDER BY created_at DESC LIMIT 1")
+    cursor.execute(
+        "SELECT digest_json FROM weekly_digests WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        (user_id,)
+    )
     row = cursor.fetchone()
     conn.close()
     if not row:

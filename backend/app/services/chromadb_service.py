@@ -35,43 +35,50 @@ class ChromaDBService:
         note_id: str, 
         embedding: List[float], 
         document: str, 
+        user_id: str = "default_user",
         metadata: Optional[Dict[str, Any]] = None
     ):
-        """Indexes or updates note embedding in ChromaDB."""
+        """Indexes or updates note embedding in ChromaDB with strict user_id scoping."""
         coll = self._get_collection()
         meta = metadata or {}
-        # Clean metadata (ChromaDB allows str, int, float, bool)
         safe_meta = {
             k: v if isinstance(v, (str, int, float, bool)) else str(v)
             for k, v in meta.items()
         }
+        safe_meta["user_id"] = user_id
+
         coll.upsert(
             ids=[note_id],
             embeddings=[embedding],
             documents=[document],
             metadatas=[safe_meta]
         )
-        logger.info(f"Indexed note {note_id} into ChromaDB.")
+        logger.info(f"Indexed note {note_id} for user {user_id} into ChromaDB.")
 
     def find_similar(
         self, 
         embedding: List[float], 
+        user_id: str = "default_user",
         threshold: float = 0.85
     ) -> Optional[Tuple[str, float]]:
         """
-        Finds existing note if cosine similarity > threshold (default 0.85).
-        For cosine space: distance = 1 - similarity.
-        Therefore, similarity = 1 - distance.
+        Finds existing note belonging to the specified user if cosine similarity > threshold.
+        Enforces where={"user_id": user_id} for strict multi-tenant isolation.
         """
         coll = self._get_collection()
         if coll.count() == 0:
             return None
 
-        results = coll.query(
-            query_embeddings=[embedding],
-            n_results=1,
-            include=["distances", "metadatas", "documents"]
-        )
+        try:
+            results = coll.query(
+                query_embeddings=[embedding],
+                n_results=1,
+                where={"user_id": user_id},
+                include=["distances", "metadatas", "documents"]
+            )
+        except Exception as e:
+            logger.warning(f"ChromaDB query with filter failed (possibly empty collection for user): {e}")
+            return None
 
         if not results or not results["ids"] or not results["ids"][0]:
             return None
@@ -79,7 +86,7 @@ class ChromaDBService:
         distance = results["distances"][0][0]
         similarity = 1.0 - distance
 
-        logger.info(f"Top Chroma match: id={results['ids'][0][0]}, distance={distance:.4f}, similarity={similarity:.4f}")
+        logger.info(f"Top Chroma match for user {user_id}: id={results['ids'][0][0]}, similarity={similarity:.4f}")
 
         if similarity >= threshold:
             return results["ids"][0][0], similarity
@@ -89,19 +96,24 @@ class ChromaDBService:
     def search(
         self, 
         embedding: List[float], 
+        user_id: str = "default_user",
         limit: int = 10
     ) -> List[Tuple[str, float]]:
-        """Performs vector semantic search returning [(note_id, similarity), ...]."""
+        """Performs vector semantic search strictly scoped to the tenant's user_id."""
         coll = self._get_collection()
         if coll.count() == 0:
             return []
 
-        n_results = min(limit, coll.count())
-        results = coll.query(
-            query_embeddings=[embedding],
-            n_results=n_results,
-            include=["distances"]
-        )
+        try:
+            results = coll.query(
+                query_embeddings=[embedding],
+                n_results=limit,
+                where={"user_id": user_id},
+                include=["distances"]
+            )
+        except Exception as e:
+            logger.warning(f"Chroma search with filter failed: {e}")
+            return []
 
         output = []
         if results and results["ids"] and results["ids"][0]:

@@ -93,6 +93,12 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Chrome Custom Tabs for OAuth2 PKCE
+    implementation("androidx.browser:browser:1.8.0")
+
+    // EncryptedSharedPreferences for Session JWT storage
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 

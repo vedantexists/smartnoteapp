@@ -74,6 +74,9 @@ class ProcessReelWorker(
             // Save initial processing note state in Room
             repository.saveInitialProcessingNote(tempId, url)
 
+            // Ensure encrypted session and JWT bearer token are active
+            repository.ensureSessionInitialized()
+
             // Make POST request to backend /process-reel
             val response = apiService.processReel(ProcessReelRequestDto(url = url, clientId = tempId))
 

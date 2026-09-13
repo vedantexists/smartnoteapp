@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
 import sys
+import secrets
 
 class Settings(BaseSettings):
     # Gemini AI
@@ -9,17 +10,29 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
 
+    # Security & Encryption (AES-256 Fernet)
+    encryption_key: str = ""
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_days: int = 30
+
+    # OAuth2 Client Credentials
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+    oauth_redirect_base: str = "http://localhost:7860"
+    app_deep_link: str = "reelnotes://auth/callback"
+
     # Persistent & Temp Directories
     data_dir: str = "/data"
     temp_dir: str = "/tmp/smartnote_media"
 
-    # External Integrations
+    # Legacy / Optional Fallback Keys
     github_pat: str = ""
-    spotify_client_id: str = ""
-    spotify_client_secret: str = ""
-    spotify_redirect_uri: str = "http://localhost:7860/callback"
     spotify_playlist_id: str = ""
     spotify_refresh_token: str = ""
+    spotify_redirect_uri: str = "http://localhost:7860/callback"
     tmdb_api_key: str = ""
     tmdb_account_id: str = ""
     tmdb_session_id: str = ""
@@ -48,7 +61,6 @@ class Settings(BaseSettings):
         target = Path(self.data_dir)
         try:
             target.mkdir(parents=True, exist_ok=True)
-            # Test write
             test_file = target / ".write_test"
             test_file.touch()
             test_file.unlink()

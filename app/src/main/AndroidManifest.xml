@@ -33,6 +33,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+
+            <!-- OAuth2 Redirect Deep Link Filter (GitHub & Spotify PKCE Callback) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="reelnotes"
+                    android:host="auth"
+                    android:path="/callback" />
+            </intent-filter>
         </activity>
 
         <!-- FileProvider for exporting .ics calendar files natively -->

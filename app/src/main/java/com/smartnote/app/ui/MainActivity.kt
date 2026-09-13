@@ -67,6 +67,36 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent) {
+        // Handle OAuth2 PKCE redirect deep links: reelnotes://auth/callback?status=success&provider=github
+        if (Intent.ACTION_VIEW == intent.action && intent.data != null) {
+            val uri = intent.data!!
+            if (uri.scheme == "reelnotes" && uri.host == "auth" && uri.path == "/callback") {
+                val status = uri.getQueryParameter("status") ?: "unknown"
+                val provider = uri.getQueryParameter("provider") ?: ""
+                val message = uri.getQueryParameter("message")
+
+                if (status.equals("success", ignoreCase = true)) {
+                    if (provider.isNotBlank()) {
+                        repository.sessionManager.addConnectedProvider(provider)
+                        Toast.makeText(
+                            this,
+                            "Connected to ${provider.replaceFirstChar { it.uppercase() }} successfully!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } else {
+                    val detail = if (!message.isNullOrBlank()) ": $message" else ""
+                    Toast.makeText(
+                        this,
+                        "Authentication for $provider $status$detail",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                return
+            }
+        }
+
+        // Handle incoming shared social video URL if launched via Android Share Sheet
         if (Intent.ACTION_SEND == intent.action && intent.type == "text/plain") {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
             val extractedUrl = extractUrl(sharedText)
@@ -189,6 +219,7 @@ fun MainAppScaffold(repository: NoteRepository) {
                 modifier = modifier
             )
             NavTab.SETTINGS -> SettingsScreen(
+                repository = repository,
                 modifier = modifier
             )
         }

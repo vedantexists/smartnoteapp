@@ -90,3 +90,15 @@ data class WeeklyDigestResponseDto(
     @SerializedName("highlight_flashcards") val highlightFlashcards: List<FlashcardDto> = emptyList(),
     @SerializedName("generated_at") val generatedAt: String
 )
+
+data class SessionResponseDto(
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("access_token") val accessToken: String,
+    @SerializedName("token_type") val tokenType: String,
+    @SerializedName("expires_in_days") val expiresInDays: Int
+)
+
+data class AuthStatusResponseDto(
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("connected_providers") val connectedProviders: List<String> = emptyList()
+)

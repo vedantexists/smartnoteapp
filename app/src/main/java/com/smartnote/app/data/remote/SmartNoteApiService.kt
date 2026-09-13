@@ -27,4 +27,13 @@ interface SmartNoteApiService {
 
     @GET("health")
     suspend fun checkHealth(): Response<Map<String, Any>>
+
+    @POST("auth/session")
+    suspend fun createSession(@Query("user_id") userId: String? = null): Response<SessionResponseDto>
+
+    @GET("auth/status")
+    suspend fun getAuthStatus(): Response<AuthStatusResponseDto>
+
+    @retrofit2.http.DELETE("auth/{provider}")
+    suspend fun disconnectProvider(@retrofit2.http.Path("provider") provider: String): Response<Map<String, Any>>
 }
