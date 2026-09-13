@@ -1,3 +1,12 @@
+---
+title: Reel Notes (SmartNote)
+emoji: ⚡
+colorFrom: indigo
+colorTo: purple
+sdk: static
+short_description: Multi-tenant social video intelligence with OAuth2 PKCE
+---
+
 # SmartNote: Autonomous Social Video Knowledge Pipeline & Android Client
 
 [![Build Android APK](https://github.com/vedantexists/smartnoteapp/actions/workflows/build-apk.yml/badge.svg)](https://github.com/vedantexists/smartnoteapp/actions/workflows/build-apk.yml)
@@ -26,8 +35,8 @@ graph TD
     I -->|Novel Topic| K[Index as New Note]
     J --> L[External Automations]
     K --> L
-    L --> M[⭐ GitHub Star PAT]
-    L --> N[🎵 Spotify Playlist Add]
+    L --> M[⭐ GitHub Star (OAuth2 PKCE)]
+    L --> N[🎵 Spotify Playlist Add (OAuth2 PKCE)]
     L --> O[🎬 TMDB Watchlist Add]
     L --> P[📝 Notion Page Sync]
     L --> Q[Update Local Room DB]
@@ -39,6 +48,8 @@ graph TD
 ## 📱 1. Android Client (`app/`)
 - **Universal Android Compatibility & Battery Resilience:** Supports Android 7.0+ (API 24 to 34+), covering over 97% of all active Android devices (Samsung, Google Pixel, Xiaomi, OnePlus, Motorola, Nothing, etc.). SmartNote utilizes **AndroidX WorkManager** with `NetworkType.CONNECTED` and exponential backoff, ensuring deferred background sync survives aggressive OEM battery management and process suspension.
 - **System Share Receiver:** Configured with `ACTION_SEND` intent filter for `text/plain` to seamlessly intercept links shared directly from Instagram or YouTube.
+- **Encrypted Session Management:** Android Jetpack `EncryptedSharedPreferences` with `MasterKey` AES256-GCM.
+- **Deep Link Callback Receiver:** Intercepts `reelnotes://auth/callback` to handle 1-tap OAuth2 authorization code flows via Chrome Custom Tabs.
 - **Local Persistence (Room DB):** `NoteEntity`, `LinkItemEntity`, `MediaRecEntity`, and `FlashcardEntity` with transactional updates.
 - **Interactive Jetpack Compose UI:**
   - **Notes Feed:** Rich card view with integration badges (⭐ GitHub Starred, 🎵 Spotify Added, 🎬 TMDB Added, 📝 Notion Synced).
@@ -50,15 +61,19 @@ graph TD
 ---
 
 ## 🐍 2. Backend (`backend/`)
-- **Containerized for Hugging Face Spaces:** Exposes port `7860`, non-root user `user` (UID 1000), local storage persisted under `/data`.
-- **Multimodal Video Processing:** Downloads lightweight 480p/720p `.mp4` using `yt-dlp`, uploads to Gemini File API (`ACTIVE` polling), extracts deep structured JSON, and deletes the file from Google servers.
-- **Clickbait & Fact-Check Gate:** Halts and rejects scams or deceptive dropshipping promotions (`status: rejected_clickbait`).
-- **Semantic Deduplication:** ChromaDB cosine distance evaluation (> 0.85 threshold). Automatically merges duplicate notes using Gemini synthesis.
+- **Modular Multi-Tenant Architecture:**
+  - `auth/`: RFC 7636 PKCE S256 verifier/challenge generation, single-use CSRF tokens with TTL, session JWTs, and deep link redirection (`reelnotes://auth/callback`).
+  - `services/`: AES-256 Fernet cryptographic service (`ENCRYPTION_KEY`), automated token refresh, and tenant-isolated ChromaDB client.
+  - `skills/`: Modular pipelines for fact checking, deduplication, repo starring, and playlist syncing.
+- **Token Encryption at Rest:** User OAuth access and refresh tokens are encrypted using AES-256-GCM (Fernet) in SQLite.
+- **Cross-Tenant IDOR Protection:** All database rows and ChromaDB vector queries enforce strict `user_id` matching (`where={"user_id": current_user}`).
+- **Multimodal Video Processing:** Downloads lightweight `.mp4` using `yt-dlp` (with SSRF defense blocking private subnets), processes via Gemini 2.5 Flash, and cleans up local media.
+- **Clickbait & Fact-Check Gate:** Halts and rejects scams or deceptive promotions (`status: rejected_clickbait`).
+- **Semantic Deduplication:** ChromaDB cosine distance evaluation (> 0.85 threshold) with Gemini auto-merging.
 - **Automations:**
-  - GitHub: Strict `PUT https://api.github.com/user/starred/{owner}/{repo}` with PAT.
-  - Spotify: Search tracks and append to target playlist via `spotipy`.
-  - TMDB: Search movies/TV series and append to watchlist.
-  - Notion: Create page blocks with structured notes, callouts, and bookmarks.
+  - GitHub: Automated repository starring via OAuth2 token exchange.
+  - Spotify: Automated playlist appending via OAuth2 PKCE.
+  - TMDB & Notion: Movie watchlist and structured notes sync.
 - **Scheduled Weekly Digests:** `APScheduler` cron job running every Sunday at 00:00 UTC.
 
 ---

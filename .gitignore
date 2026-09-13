@@ -55,6 +55,7 @@ coverage.xml
 .pytest_cache/
 *test_*tmp*/
 *tmp_test*
+.agents/
 
 # Local persistence & temp media
 /backend/data/
