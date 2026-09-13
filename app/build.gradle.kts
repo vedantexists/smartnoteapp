@@ -78,7 +78,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // WorkManager (Vital for Oppo A5 2020 ColorOS background task execution)
+    // WorkManager (Vital for background sync resilience across aggressive OEM battery managers)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // Room Database

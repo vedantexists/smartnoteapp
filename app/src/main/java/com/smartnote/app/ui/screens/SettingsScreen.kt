@@ -151,7 +151,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Device Optimization Card (Oppo A5 2020 / ColorOS)
+        // Device Optimization Card (Universal Android OEM Battery Optimization)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -160,21 +160,21 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "📱 Target Device Optimization",
+                    text = "📱 Universal Device Optimization",
                     color = AccentAmber,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Oppo A5 2020 (Snapdragon 665, ColorOS)",
+                    text = "Resilient Background Sync (Android 7.0+ / API 24–34+)",
                     color = TextPrimaryDark,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "ColorOS applies strict background process suspension to conserve battery. SmartNote utilizes AndroidX WorkManager with exponential backoff constraints and network type guarantees. When you share an Instagram Reel or YouTube Short, the job is persisted to system SQLite and processed reliably in the background without UI blocking.",
+                    text = "Many Android manufacturers (Samsung, Xiaomi, OnePlus, Motorola, Vivo) apply strict background task limits to conserve battery. SmartNote utilizes AndroidX WorkManager with exponential backoff constraints and network type guarantees. When you share a Reel or Short, the task is persisted to system SQLite and processed reliably in the background without UI blocking.",
                     color = TextSecondaryDark,
                     fontSize = 12.sp,
                     lineHeight = 17.sp

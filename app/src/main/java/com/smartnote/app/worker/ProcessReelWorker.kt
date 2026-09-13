@@ -27,7 +27,7 @@ class ProcessReelWorker(
 
         /**
          * Enqueues background worker with network constraints and exponential backoff,
-         * ensuring survival on aggressive battery optimization engines like Oppo ColorOS.
+         * ensuring survival on aggressive battery optimization engines across OEM devices.
          */
         fun enqueue(context: Context, url: String): String {
             val tempId = UUID.randomUUID().toString()

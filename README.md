@@ -6,7 +6,7 @@
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Deduplication-orange.svg)](https://www.trychroma.com)
 [![Android Compose](https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84.svg?logo=android)](https://developer.android.com/jetpack/compose)
 
-An end-to-end, 100% free-tier optimized pipeline consisting of a **Jetpack Compose Android client** (resilient for ColorOS / Oppo A5 2020) and a **Python FastAPI backend** containerized for Hugging Face Spaces. It ingests social video URLs (Instagram Reels, YouTube Shorts), extracts structured knowledge via the **Google Gemini Multimodal File API**, semantically deduplicates notes with **local ChromaDB**, and automates multi-service actions across **GitHub, Spotify, TMDB, and Notion**.
+An end-to-end, 100% free-tier optimized pipeline consisting of a **Jetpack Compose Android client** (compatible with all modern Android devices, Android 7.0+ / API 24+) and a **Python FastAPI backend** containerized for Hugging Face Spaces. It ingests social video URLs (Instagram Reels, YouTube Shorts), extracts structured knowledge via the **Google Gemini Multimodal File API**, semantically deduplicates notes with **local ChromaDB**, and automates multi-service actions across **GitHub, Spotify, TMDB, and Notion**.
 
 ---
 
@@ -37,7 +37,7 @@ graph TD
 ---
 
 ## 📱 1. Android Client (`app/`)
-- **Target Device Optimization:** Oppo A5 2020 (Snapdragon 665, ColorOS). ColorOS aggressively terminates background processes. SmartNote uses **AndroidX WorkManager** with `NetworkType.CONNECTED` and exponential backoff, ensuring deferred execution survives OEM process suspension.
+- **Universal Android Compatibility & Battery Resilience:** Supports Android 7.0+ (API 24 to 34+), covering over 97% of all active Android devices (Samsung, Google Pixel, Xiaomi, OnePlus, Motorola, Nothing, etc.). SmartNote utilizes **AndroidX WorkManager** with `NetworkType.CONNECTED` and exponential backoff, ensuring deferred background sync survives aggressive OEM battery management and process suspension.
 - **System Share Receiver:** Configured with `ACTION_SEND` intent filter for `text/plain` to seamlessly intercept links shared directly from Instagram or YouTube.
 - **Local Persistence (Room DB):** `NoteEntity`, `LinkItemEntity`, `MediaRecEntity`, and `FlashcardEntity` with transactional updates.
 - **Interactive Jetpack Compose UI:**
