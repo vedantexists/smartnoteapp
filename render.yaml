@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: smartnote-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OAUTH_REDIRECT_BASE
+        fromService:
+          type: web
+          name: smartnote-backend
+          property: host
+      - key: APP_DEEP_LINK
+        value: reelnotes://auth/callback
+      - key: DATA_DIR
+        value: /data
+      - key: TEMP_DIR
+        value: /tmp/smartnote_media
+      - key: ENVIRONMENT
+        value: production
