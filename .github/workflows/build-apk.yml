@@ -25,30 +25,15 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK with Gradle
-        id: gradle_build
-        run: |
-          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build.log
-        continue-on-error: true
-
-      - name: Report Build Log and Workspace
-        run: |
-          tail -n 30 build.log | while IFS= read -r line; do
-            echo "::warning title=LogTail::$line"
-          done
-          head -n 15 build.log | while IFS= read -r line; do
-            echo "::warning title=LogHead::$line"
-          done
-          find . -name "*.apk" -ls | while IFS= read -r line; do
-            echo "::warning title=FoundApk::$line"
-          done
-          find . -name "outputs" -ls | while IFS= read -r line; do
-            echo "::warning title=FoundOutputs::$line"
-          done
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Locate and Stage Generated APK
         run: |
+          echo "=== Searching for generated APK files ==="
+          find . -name "*.apk" -ls
           mkdir -p apk-output
           find . -name "*.apk" -exec cp -v {} apk-output/ \;
+          echo "=== Contents of staged apk-output: ==="
           ls -la apk-output/
 
       - name: Upload Debug APK Artifact
