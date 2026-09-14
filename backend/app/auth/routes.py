@@ -225,7 +225,12 @@ def _render_deep_link_redirect(status: str, provider: str, user_id: Optional[str
     if message:
         deep_link += f"&message={urllib.parse.quote(message)}"
 
-    # HTML page that immediately redirects to deep link with browser fallback
+    # HTML page that attempts deep link redirect to Android app with desktop instructions
+    is_success = status.lower() == "success"
+    heading_color = "#10B981" if is_success else "#EF4444"
+    heading_text = f"Authentication {status.capitalize()}!"
+    body_msg = f"Connected to <strong>{provider.capitalize()}</strong>." if is_success else f"Reason: {message or 'Authentication failed'}"
+
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -234,21 +239,34 @@ def _render_deep_link_redirect(status: str, provider: str, user_id: Optional[str
         <title>SmartNote Authentication</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-            body {{ font-family: system-ui, -apple-system, sans-serif; background: #0F172A; color: #F8FAFC; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }}
-            .card {{ background: #1E293B; padding: 2.5rem; border-radius: 1rem; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
-            h2 {{ color: #10B981; margin-top: 0; }}
-            a {{ display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: #6366F1; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: bold; }}
+            body {{ font-family: system-ui, -apple-system, sans-serif; background: #0B0F19; color: #F8FAFC; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; text-align: center; }}
+            .card {{ background: #151D2F; border: 1px solid rgba(255, 255, 255, 0.1); padding: 2.5rem 2rem; border-radius: 1.25rem; max-width: 440px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }}
+            h2 {{ color: {heading_color}; margin-top: 0; font-size: 1.5rem; }}
+            p {{ color: #94A3B8; font-size: 0.95rem; line-height: 1.5; }}
+            .badge {{ display: inline-block; background: rgba(16, 185, 129, 0.15); color: #10B981; padding: 0.35rem 0.85rem; border-radius: 999px; font-weight: 600; font-size: 0.85rem; margin-bottom: 1rem; }}
+            a.btn {{ display: inline-block; margin-top: 1.25rem; padding: 0.85rem 1.75rem; background: #6366F1; color: white; text-decoration: none; border-radius: 0.75rem; font-weight: 600; font-size: 0.95rem; }}
+            .note {{ margin-top: 1.5rem; font-size: 0.8rem; color: #64748B; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1rem; }}
         </style>
     </head>
     <body>
         <div class="card">
-            <h2>Authentication {status.capitalize()}!</h2>
-            <p>Connected to <strong>{provider.capitalize()}</strong>.</p>
-            <p>Returning to SmartNote app...</p>
-            <a href="{deep_link}">Tap to Return to App</a>
+            <div class="badge">{"✅ Successfully Authenticated" if is_success else "⚠️ Notice"}</div>
+            <h2>{heading_text}</h2>
+            <p>{body_msg}</p>
+            <p>Your OAuth tokens have been encrypted with AES-256 and stored securely.</p>
+            <a class="btn" href="{deep_link}">Return to SmartNote App</a>
+            <div class="note">
+                📱 <strong>On your phone:</strong> Tapping above opens SmartNote.<br>
+                💻 <strong>On a computer:</strong> You can safely close this browser window.
+            </div>
         </div>
         <script>
-            window.location.href = "{deep_link}";
+            // Attempt automatic deep link navigation on mobile
+            if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {{
+                setTimeout(function() {{
+                    window.location.href = "{deep_link}";
+                }}, 300);
+            }}
         </script>
     </body>
     </html>
