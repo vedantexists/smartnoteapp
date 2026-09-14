@@ -32,13 +32,12 @@ jobs:
 
       - name: Locate and Stage Generated APK
         run: |
-          echo "### Build Diagnostics" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "=== All .apk files found in workspace ===" >> $GITHUB_STEP_SUMMARY
-          find . -name "*.apk" -ls >> $GITHUB_STEP_SUMMARY 2>&1 || true
-          echo "=== Directory tree of app/build ===" >> $GITHUB_STEP_SUMMARY
-          find app/build -maxdepth 4 -ls >> $GITHUB_STEP_SUMMARY 2>&1 || true
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          OUTPUTS=$(ls -laR app/build/outputs 2>&1 | tr '\n' ' ; ')
+          echo "::warning title=OutputsDir::${OUTPUTS:0:500}"
+          APP_FILES=$(find app/build -type f | head -n 40 | tr '\n' ' ; ')
+          echo "::warning title=AppBuildFiles::${APP_FILES:0:500}"
+          ALL_APKS=$(find . -name "*.apk" | tr '\n' ' ; ')
+          echo "::warning title=AllApks::${ALL_APKS:0:500}"
 
           mkdir -p apk-output
           find . -name "*.apk" -exec cp -v {} apk-output/ \; || true
@@ -57,6 +56,8 @@ jobs:
           count=$(find apk-output -name "*.apk" | wc -l)
           if [ "$count" -eq 0 ]; then
             echo "ERROR: No APK found in apk-output!"
+            echo "Listing all files in app/build:"
+            find app/build -type f || true
             exit 1
           fi
           echo "SUCCESS: $count APK(s) found in apk-output:"
