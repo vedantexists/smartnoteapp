@@ -28,20 +28,37 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK with Gradle
-        run: ./gradlew :app:clean :app:assembleDebug --no-build-cache --stacktrace --info
-
-      - name: Locate and Stage Generated APK
         run: |
-          OUTPUTS=$(ls -laR app/build/outputs 2>&1 | tr '\n' ' ; ')
-          echo "::warning title=OutputsDir::${OUTPUTS:0:500}"
-          APP_FILES=$(find app/build -type f | head -n 40 | tr '\n' ' ; ')
-          echo "::warning title=AppBuildFiles::${APP_FILES:0:500}"
-          ALL_APKS=$(find . -name "*.apk" | tr '\n' ' ; ')
-          echo "::warning title=AllApks::${ALL_APKS:0:500}"
+          set +e
+          ./gradlew :app:assembleDebug --stacktrace > build.log 2>&1
+          BUILD_STATUS=$?
+          echo "Build finished with status: $BUILD_STATUS"
+          echo "::warning title=BuildStatus::Gradle exited with code $BUILD_STATUS"
+          
+          # Emit last 35 lines of build log as annotations
+          tail -n 35 build.log | while IFS= read -r line; do
+            echo "::warning title=GradleLog::$line"
+          done
 
+          # Locate all build directories
+          find . -maxdepth 4 -name "build" -type d | while IFS= read -r line; do
+            echo "::warning title=FoundBuildDir::$line"
+          done
+
+          # Locate all APK files
+          find . -name "*.apk" -ls | while IFS= read -r line; do
+            echo "::warning title=FoundAPK::$line"
+          done
+
+          if [ $BUILD_STATUS -ne 0 ]; then
+            echo "Gradle build failed!"
+            exit $BUILD_STATUS
+          fi
+
+      - name: Stage and Upload APK
+        run: |
           mkdir -p apk-output
           find . -name "*.apk" -exec cp -v {} apk-output/ \; || true
-          echo "=== Contents of staged apk-output: ==="
           ls -la apk-output/
 
       - name: Upload Debug APK Artifact
@@ -50,16 +67,4 @@ jobs:
           name: app-debug
           path: apk-output/*.apk
           if-no-files-found: warn
-
-      - name: Check APK Exists
-        run: |
-          count=$(find apk-output -name "*.apk" | wc -l)
-          if [ "$count" -eq 0 ]; then
-            echo "ERROR: No APK found in apk-output!"
-            echo "Listing all files in app/build:"
-            find app/build -type f || true
-            exit 1
-          fi
-          echo "SUCCESS: $count APK(s) found in apk-output:"
-          ls -lh apk-output/*.apk
 
