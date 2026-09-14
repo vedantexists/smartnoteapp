@@ -28,17 +28,23 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK with Gradle
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Verify and Locate Generated APK
+      - name: Locate and Stage Generated APK
         run: |
-          echo "=== Searching for generated APKs ==="
-          find app/build/outputs/apk -type f -name "*.apk" -ls || true
+          echo "=== Searching for generated APK files ==="
+          find . -name "*.apk" -ls
+          echo "=== Directory tree of app/build ==="
+          find app/build -maxdepth 4 -type d || true
+          mkdir -p apk-output
+          find . -name "*.apk" -exec cp -v {} apk-output/ \;
+          echo "=== Contents of staged apk-output: ==="
+          ls -la apk-output/
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/**/*.apk
+          path: apk-output/*.apk
           if-no-files-found: error
 
