@@ -50,6 +50,16 @@ def get_auth_status(current_user: str = Depends(get_current_user)):
     connected = get_connected_providers(current_user)
     return AuthStatusResponse(user_id=current_user, connected_providers=connected)
 
+def _get_normalized_redirect_uri(provider: str) -> str:
+    base = settings.oauth_redirect_base.strip()
+    if not base.startswith("http://") and not base.startswith("https://"):
+        if "onrender.com" not in base and not base.startswith("localhost"):
+            base = f"https://{base}.onrender.com"
+        else:
+            base = f"https://{base}"
+    base = base.rstrip("/")
+    return f"{base}/auth/{provider.lower()}/callback"
+
 @router.get("/{provider}/login")
 def oauth_login(
     provider: str,
@@ -67,10 +77,10 @@ def oauth_login(
     pkce = pkce_manager.generate_pkce_pair()
     state = pkce_manager.create_state(user_id=uid, provider=prov, code_verifier=pkce.code_verifier)
 
-    redirect_uri = f"{settings.oauth_redirect_base}/auth/{prov}/callback"
+    redirect_uri = _get_normalized_redirect_uri(prov)
 
     if prov == "github":
-        client_id = settings.github_client_id
+        client_id = settings.github_client_id.strip()
         if not client_id:
             raise HTTPException(status_code=500, detail="GITHUB_CLIENT_ID not configured")
         
@@ -83,7 +93,7 @@ def oauth_login(
         auth_url = f"https://github.com/login/oauth/authorize?{urllib.parse.urlencode(params)}"
 
     else: # spotify
-        client_id = settings.spotify_client_id
+        client_id = settings.spotify_client_id.strip()
         if not client_id:
             raise HTTPException(status_code=500, detail="SPOTIFY_CLIENT_ID not configured")
         
@@ -128,14 +138,14 @@ def oauth_callback(
 
     user_id = state_entry.user_id
     code_verifier = state_entry.code_verifier
-    redirect_uri = f"{settings.oauth_redirect_base}/auth/{prov}/callback"
+    redirect_uri = _get_normalized_redirect_uri(prov)
 
     try:
         if prov == "github":
             token_url = "https://github.com/login/oauth/access_token"
             data = {
-                "client_id": settings.github_client_id,
-                "client_secret": settings.github_client_secret,
+                "client_id": settings.github_client_id.strip(),
+                "client_secret": settings.github_client_secret.strip(),
                 "code": code,
                 "redirect_uri": redirect_uri
             }

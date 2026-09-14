@@ -19,10 +19,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: OAUTH_REDIRECT_BASE
-        fromService:
-          type: web
-          name: smartnote-backend
-          property: host
+        value: https://smartnote-backend-2xf6.onrender.com
       - key: APP_DEEP_LINK
         value: reelnotes://auth/callback
       - key: DATA_DIR
