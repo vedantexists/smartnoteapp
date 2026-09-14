@@ -34,7 +34,7 @@ object CalendarExportHelper {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            val chooser = Intent.CreateChooser(intent, "Import into Calendar").apply {
+            val chooser = Intent.createChooser(intent, "Import into Calendar").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(chooser)

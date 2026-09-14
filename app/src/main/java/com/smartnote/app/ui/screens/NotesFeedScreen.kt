@@ -130,6 +130,8 @@ fun NotesFeedScreen(
                         labelColor = TextSecondaryDark
                     ),
                     border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
                         borderColor = CardBorderDark,
                         selectedBorderColor = PrimaryIndigo
                     )
