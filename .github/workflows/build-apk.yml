@@ -5,10 +5,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build:
     name: Build Debug APK
@@ -23,42 +19,21 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
       - name: Build Debug APK with Gradle
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Locate and Stage Generated APK
         run: |
-          set +e
-          ./gradlew :app:assembleDebug --stacktrace > build.log 2>&1
-          BUILD_STATUS=$?
-          echo "Build finished with status: $BUILD_STATUS"
-          echo "::warning title=BuildStatus::Gradle exited with code $BUILD_STATUS"
-          
-          # Emit last 35 lines of build log as annotations
-          tail -n 35 build.log | while IFS= read -r line; do
-            echo "::warning title=GradleLog::$line"
-          done
-
-          # Locate all build directories
-          find . -maxdepth 4 -name "build" -type d | while IFS= read -r line; do
-            echo "::warning title=FoundBuildDir::$line"
-          done
-
-          # Locate all APK files
-          find . -name "*.apk" -ls | while IFS= read -r line; do
-            echo "::warning title=FoundAPK::$line"
-          done
-
-          if [ $BUILD_STATUS -ne 0 ]; then
-            echo "Gradle build failed!"
-            exit $BUILD_STATUS
-          fi
-
-      - name: Stage and Upload APK
-        run: |
+          echo "=== Searching for generated APK files ==="
+          find . -name "*.apk" -ls
           mkdir -p apk-output
-          find . -name "*.apk" -exec cp -v {} apk-output/ \; || true
+          find . -name "*.apk" -exec cp -v {} apk-output/ \;
+          echo "=== Contents of staged apk-output: ==="
           ls -la apk-output/
 
       - name: Upload Debug APK Artifact
@@ -66,5 +41,6 @@ jobs:
         with:
           name: app-debug
           path: apk-output/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
+
 
