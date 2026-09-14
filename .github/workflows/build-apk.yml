@@ -25,7 +25,24 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK with Gradle
-        run: ./gradlew :app:assembleDebug --stacktrace
+        id: gradle_build
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build.log
+        continue-on-error: true
+
+      - name: Check Build and Report Errors
+        run: |
+          if grep -q "BUILD FAILED" build.log; then
+            echo "=== GRADLE FAILURE DETAILS ==="
+            grep -A 25 "FAILURE: Build failed" build.log | while IFS= read -r line; do
+              echo "::error title=GradleFailure::$line"
+            done
+            grep -E "(e: |ERROR:|> Task :app:.*FAILED)" build.log | head -n 30 | while IFS= read -r line; do
+              echo "::error title=CompilerError::$line"
+            done
+            exit 1
+          fi
+          echo "Gradle build succeeded!"
 
       - name: Locate and Stage Generated APK
         run: |
@@ -42,5 +59,6 @@ jobs:
           name: app-debug
           path: apk-output/*.apk
           if-no-files-found: error
+
 
 
